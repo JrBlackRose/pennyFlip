@@ -1,0 +1,43 @@
+name: pennyflip
+description: "pennyFlip — Quantitative Microcap Sniper & Filter Engine. 100% on-device, zero-budget market-hours autonomous scanner."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Background execution / market-hours lifecycle
+  flutter_background_service: ^5.1.0
+  flutter_background_service_android: ^6.3.0
+  android_alarm_manager_plus: ^5.0.4
+  wakelock_plus: ^1.2.8
+  flutter_local_notifications: ^18.0.1
+  permission_handler: ^11.4.0
+
+  # Storage
+  sqflite: ^2.4.1
+  path: ^1.9.0
+  path_provider: ^2.1.5
+  flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.3.3
+
+  # Networking
+  http: ^1.2.2
+
+  # Time zone math (America/New_York market-hours fallback uses this
+  # directly; the device's own locale/timezone is deliberately irrelevant
+  # since US market hours are always expressed in America/New_York).
+  timezone: ^0.9.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
