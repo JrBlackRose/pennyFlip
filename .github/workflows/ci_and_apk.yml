@@ -14,19 +14,46 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-      - name: Get Flutter packages
-        run: flutter pub get
+
       - uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: "17"
-      - name: Build Debug APK
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: Generate Native Gradle 8.14+ Wrapper & Kotlin DSL Build Files
         run: |
+          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml.bak
           flutter create . --platforms=android --org com.pennyflip.sniper
-          flutter build apk --debug
+          cp /tmp/AndroidManifest.xml.bak android/app/src/main/AndroidManifest.xml
+
+      - name: Configure Core Library Desugaring & MinSDK in build.gradle.kts
+        run: |
+          python3 - << 'PYEOF'
+          from pathlib import Path
+          kts = Path("android/app/build.gradle.kts")
+          if kts.exists():
+              text = kts.read_text()
+              text = text.replace(
+                  "compileOptions {",
+                  "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
+              )
+              text = text.replace("minSdk = flutter.minSdkVersion", "minSdk = 24")
+              text += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+              kts.write_text(text)
+          PYEOF
+
+      - name: Get Flutter packages & Run Quant Engine Self-Test
+        run: |
+          flutter pub get
+          flutter test test/engine_self_test.dart
+
+      - name: Build Debug APK
+        run: flutter build apk --debug
+
       - name: Upload pennyFlip APK Artifact
         uses: actions/upload-artifact@v4
         with:

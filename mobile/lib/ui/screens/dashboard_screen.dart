@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -57,8 +58,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _subscribeToService() {
-    final service = FlutterBackgroundService();
-    _statusSub = service.on(BackgroundServiceController.statusChannelEvent).listen((event) {
+    final Stream<Map<String, dynamic>?> stream = Platform.isAndroid
+        ? FlutterBackgroundService().on(BackgroundServiceController.statusChannelEvent)
+        : BackgroundServiceController.desktopStatusStream;
+    _statusSub = stream.listen((event) {
       if (!mounted || event == null) return;
       setState(() {
         _daemonStatus = _daemonStatus.copyWith(

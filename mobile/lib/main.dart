@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -14,10 +15,12 @@ Future<void> main() async {
 
   // Local notifications (used by flutter_background_service's persistent
   // status notification during market hours).
-  final notifications = FlutterLocalNotificationsPlugin();
-  await notifications.initialize(
-    const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
-  );
+  if (Platform.isAndroid) {
+    final notifications = FlutterLocalNotificationsPlugin();
+    await notifications.initialize(
+      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+    );
+  }
 
   // Android 13+ (API 33) requires a runtime grant for POST_NOTIFICATIONS, or
   // the Foreground Service still runs but its persistent status notification
@@ -26,7 +29,9 @@ Future<void> main() async {
   // purely via the manifest — this app's whole purpose is exact-alarm-driven
   // scheduling, so USE_EXACT_ALARM is auto-granted on API 33+ without a
   // settings round-trip.
-  await Permission.notification.request();
+  if (Platform.isAndroid) {
+    await Permission.notification.request();
+  }
 
   // Wire up the Foreground Service lifecycle (spec section 2).
   await BackgroundServiceController.initialize();

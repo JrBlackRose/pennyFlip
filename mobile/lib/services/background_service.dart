@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:async';
 import 'dart:ui';
 
@@ -32,8 +33,14 @@ class BackgroundServiceController {
 
   static const String statusChannelEvent = 'pennyflip_status';
 
+  static final StreamController<Map<String, dynamic>> _desktopStatusController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static Stream<Map<String, dynamic>> get desktopStatusStream => _desktopStatusController.stream;
+  static Timer? _desktopTimer;
+
   /// Call once from main() before runApp().
   static Future<void> initialize() async {
+    if (!Platform.isAndroid) return;
     final service = FlutterBackgroundService();
 
     const androidNotificationChannel = AndroidNotificationChannel(
@@ -75,6 +82,10 @@ class BackgroundServiceController {
   /// Entry point used by MainActivity / settings screen for a manual
   /// "Start scanning now" override.
   static Future<void> manualStart() async {
+    if (!Platform.isAndroid) {
+      await _startDesktopDaemon();
+      return;
+    }
     final service = FlutterBackgroundService();
     if (!await service.isRunning()) {
       await service.startService();
@@ -82,8 +93,58 @@ class BackgroundServiceController {
   }
 
   static Future<void> manualStop() async {
+    if (!Platform.isAndroid) {
+      _desktopTimer?.cancel();
+      _desktopTimer = null;
+      final clock = await MarketClockService.instance.getSnapshot();
+      _desktopStatusController.add({
+        'is_active': false,
+        'next_open_utc': clock.nextOpenUtc.toIso8601String(),
+        'next_close_utc': clock.nextCloseUtc.toIso8601String(),
+        'last_tick_utc': DateTime.now().toUtc().toIso8601String(),
+        'clock_source': clock.source.name,
+      });
+      return;
+    }
     final service = FlutterBackgroundService();
     service.invoke('stop');
+  }
+
+  static Future<void> _startDesktopDaemon() async {
+    _desktopTimer?.cancel();
+    final override = await SettingsService.instance.getDaemonManualOverride();
+    final clock = await MarketClockService.instance.getSnapshot();
+    final shouldRun = override == 'force_on' || (override != 'force_off' && clock.isOpen);
+
+    _desktopStatusController.add({
+      'is_active': shouldRun,
+      'next_open_utc': clock.nextOpenUtc.toIso8601String(),
+      'next_close_utc': clock.nextCloseUtc.toIso8601String(),
+      'last_tick_utc': DateTime.now().toUtc().toIso8601String(),
+      'clock_source': clock.source.name,
+    });
+
+    if (!shouldRun) return;
+
+    _desktopTimer = Timer.periodic(_scanTickInterval, (timer) async {
+      final latestOverride = await SettingsService.instance.getDaemonManualOverride();
+      final latestClock = await MarketClockService.instance.getSnapshot();
+      if (latestOverride == 'force_off' || (latestOverride != 'force_on' && !latestClock.isOpen)) {
+        timer.cancel();
+        await manualStop();
+        return;
+      }
+      try {
+        await ScanOrchestrator.instance.runCycle(trigger: 'laptop_daemon_tick');
+      } catch (_) {}
+      _desktopStatusController.add({
+        'is_active': true,
+        'next_open_utc': latestClock.nextOpenUtc.toIso8601String(),
+        'next_close_utc': latestClock.nextCloseUtc.toIso8601String(),
+        'last_tick_utc': DateTime.now().toUtc().toIso8601String(),
+        'clock_source': latestClock.source.name,
+      });
+    });
   }
 }
 

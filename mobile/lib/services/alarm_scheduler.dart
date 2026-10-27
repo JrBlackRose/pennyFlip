@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
@@ -20,7 +21,7 @@ class AlarmScheduler {
   static bool _initialized = false;
 
   static Future<void> ensureInitialized() async {
-    if (_initialized) return;
+    if (_initialized || !Platform.isAndroid) return;
     await AndroidAlarmManager.initialize();
     _initialized = true;
   }
@@ -30,6 +31,7 @@ class AlarmScheduler {
   /// alarm with Android's AlarmManager if the device reboots before it
   /// fires — part of the boot-persistence story alongside BootReceiver.
   static Future<void> scheduleWakeAt(DateTime nextOpenUtc) async {
+    if (!Platform.isAndroid) return;
     await ensureInitialized();
     await AndroidAlarmManager.cancel(wakeAlarmId);
     await AndroidAlarmManager.oneShotAt(
@@ -45,6 +47,7 @@ class AlarmScheduler {
   }
 
   static Future<void> cancelWakeAlarm() async {
+    if (!Platform.isAndroid) return;
     await ensureInitialized();
     await AndroidAlarmManager.cancel(wakeAlarmId);
   }
