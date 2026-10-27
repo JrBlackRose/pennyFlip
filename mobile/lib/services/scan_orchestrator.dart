@@ -1,3 +1,4 @@
+import 'kill_switch_service.dart';
 import 'dart:async';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -68,6 +69,11 @@ class ScanOrchestrator {
     var approved = 0;
 
     try {
+      // First priority on every tick: check open trades & auto-stop any position going wrong
+      await KillSwitchService.monitorActiveTrades();
+      if ((await SettingsService.instance.getDaemonManualOverride()) == 'force_off') {
+        return const ScanCycleSummary(scanned: 0, approved: 0, skipped: true);
+      }
       await ensureUniverseFresh();
       final batch = await _nextBatch(batchSize);
       final autoTradeEnabled = await SettingsService.instance.getAutoTradeEnabled();

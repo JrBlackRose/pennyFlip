@@ -1,3 +1,4 @@
+import '../../services/kill_switch_service.dart';
 import 'dart:io' show Platform;
 import 'dart:async';
 
@@ -101,6 +102,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  Future<void> _onEmergencyKillSwitch() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        title: Row(
+          children: [
+            const Icon(Icons.gpp_bad_outlined, color: AppColors.signalFail),
+            const SizedBox(width: 8),
+            Text('EMERGENCY KILLSWITCH', style: AppTheme.mono(size: 14, weight: FontWeight.w800, color: AppColors.signalFail)),
+          ],
+        ),
+        content: const Text(
+          'This will immediately:\n'
+          '1. Lock the background daemon to FORCED OFF\n'
+          '2. Cancel all open working orders on Alpaca\n'
+          '3. Market-liquidate all open positions',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.signalFail, foregroundColor: Colors.white),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('LIQUIDATE & HALT'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final report = await KillSwitchService.triggerEmergencyPanic(reason: 'USER_DASHBOARD_KILLSWITCH');
+    await _refreshClockSnapshot();
+    if (!mounted) return;
+    setState(() => _daemonStatus = _daemonStatus.copyWith(isActive: false, manualOverride: 'force_off'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(report.actions.join(' • '))),
+    );
+  }
+
   Future<void> _onStartNow() async {
     await SettingsService.instance.setDaemonManualOverride(null);
     await BackgroundServiceController.manualStart();
@@ -182,6 +221,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onStartNow: _onStartNow,
               onStopNow: _onStopNow,
               onForceOverrideChanged: _onForceOverrideChanged,
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.signalFail,
+                  side: const BorderSide(color: AppColors.signalFail, width: 1.4),
+                  backgroundColor: AppColors.signalFail.withOpacity(0.08),
+                ),
+                onPressed: _onEmergencyKillSwitch,
+                icon: const Icon(Icons.gpp_bad_outlined, size: 18),
+                label: Text(
+                  'EMERGENCY KILLSWITCH (LIQUIDATE ALL & HALT)',
+                  style: AppTheme.mono(size: 11.5, weight: FontWeight.w800, color: AppColors.signalFail),
+                ),
+              ),
             ),
             const SizedBox(height: 14),
             PipelineFunnel(

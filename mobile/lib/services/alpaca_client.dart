@@ -180,6 +180,48 @@ class AlpacaClient {
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['bars'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
   }
+
+  /// GET /v2/account — full account map (cash, equity, last_equity) for drawdown guard.
+  Future<Map<String, dynamic>> getAccountSummary() async {
+    final resp = await http.get(Uri.parse('$_baseUrl/v2/account'), headers: await _headers());
+    if (resp.statusCode != 200) {
+      throw AlpacaException('GET /v2/account failed: ${resp.statusCode} ${resp.body}');
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  /// GET /v2/positions — list all open paper positions.
+  Future<List<Map<String, dynamic>>> getOpenPositions() async {
+    final resp = await http.get(Uri.parse('$_baseUrl/v2/positions'), headers: await _headers());
+    if (resp.statusCode != 200) {
+      throw AlpacaException('GET /v2/positions failed: ${resp.statusCode} ${resp.body}');
+    }
+    return (jsonDecode(resp.body) as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  /// DELETE /v2/positions/{symbol} — immediately market-close a single losing position.
+  Future<void> closePosition(String symbol) async {
+    await http.delete(Uri.parse('$_baseUrl/v2/positions/$symbol'), headers: await _headers());
+  }
+
+  /// DELETE /v2/orders — cancel all open working orders.
+  Future<void> cancelAllOrders() async {
+    await http.delete(Uri.parse('$_baseUrl/v2/orders'), headers: await _headers());
+  }
+
+  /// DELETE /v2/positions?cancel_orders=true — atomic Alpaca panic liquidation.
+  Future<int> liquidateAllPositionsAndCancelOrders() async {
+    final resp = await http.delete(
+      Uri.parse('$_baseUrl/v2/positions?cancel_orders=true'),
+      headers: await _headers(),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 207 && resp.statusCode != 204) {
+      throw AlpacaException('Emergency liquidation failed: ${resp.statusCode} ${resp.body}');
+    }
+    if (resp.body.isEmpty) return 0;
+    final decoded = jsonDecode(resp.body);
+    return decoded is List ? decoded.length : 0;
+  }
 }
 
 class AlpacaException implements Exception {

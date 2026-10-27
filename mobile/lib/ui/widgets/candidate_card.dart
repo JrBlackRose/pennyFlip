@@ -20,6 +20,10 @@ class CandidateCard extends StatelessWidget {
             _header(),
             const SizedBox(height: 10),
             _moduleRow(),
+            if (result.module1 != null && !result.module1!.passed && result.module1!.failReason != null) ...[
+              const SizedBox(height: 10),
+              _failLine('M1 Gate: ${result.module1!.failReason!}'),
+            ],
             if (result.module2 != null) ...[
               const SizedBox(height: 12),
               _module2Detail(result.module2!),
