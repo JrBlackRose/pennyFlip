@@ -193,8 +193,31 @@ class ScanOrchestrator {
     _controller.add(result);
     if (!module1.passed) return result;
 
+    // --- Penny Stock Price Guard ($0.05 to $5.00) ---
+    // Fetch recent bars to inspect current price level before running compute-heavy pattern scanning
+
+
+    if (rawBars.isNotEmpty) {
+      final latestClose = (rawBars.last['c'] as num?)?.toDouble() ?? 0.0;
+      if (latestClose > 5.00 || latestClose < 0.05) {
+        result = result.copyWith(
+          stage: PipelineStage.module1Data,
+          outcome: StageOutcome.fail,
+          module1: Module1Result(
+            passed: false,
+            isDelisted: submissions.isDelisted,
+            tradableOnBroker: asset?.tradable ?? false,
+            exchangeOtc: asset?.exchange == 'OTC',
+            sharesOutstanding: sharesOutstanding,
+            failReason: 'Price Filter: \$$latestClose is outside penny range (\$0.05 - \$5.00)',
+          ),
+        );
+        _controller.add(result);
+        return result;
+      }
+    }
+
     // --- Module 2 ----------------------------------------------------------
-    List<Map<String, dynamic>> rawBars;
     try {
       rawBars = await AlpacaClient.instance.getRawDailyBars(ticker, limit: 180);
     } catch (_) {
